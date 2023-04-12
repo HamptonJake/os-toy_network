@@ -76,8 +76,6 @@ def c(files):
       fd = file descriptor to write to. default is stdout
     output: a single file
     '''
-    #print(f'files to print are {files}')
-    #print(f'file descriptor to print to is fd = {ofd}')
 
     ffile = bytearray()
     
