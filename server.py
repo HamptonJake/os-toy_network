@@ -1,6 +1,3 @@
-
- 
-
 #! /usr/bin/env python3
 
 # server program
@@ -8,7 +5,7 @@
 import socket, sys, re
 sys.path.append("../lib")       # for params
 import params
-import mytar
+import mytar #from lab 1
 
 switchesVarDefaults = (
     (('-l', '--listenPort') ,'listenPort', 50001),
@@ -62,18 +59,3 @@ conn.close()
         
 
         
-Footer
-© 2023 GitHub, Inc.
-Footer navigation
-Terms
-Privacy
-Security
-Status
-Docs
-Contact GitHub
-Pricing
-API
-Training
-Blog
-About
-nets-tcp-framing/server.py at master · UTEP-jescamilla2-CS4375/nets-tcp-framing
