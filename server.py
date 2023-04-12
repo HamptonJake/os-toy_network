@@ -51,7 +51,7 @@ while 1:
         framer.send_msg(conn, message)
     '''
 
-# data has been successfully received at this point. extract the data.
+#Data is good so we can extract
 mytar.x(data)
     
 conn.shutdown(socket.SHUT_WR)
