@@ -1,74 +1,141 @@
-#!/usr/bin/env python3
+#! user/bin/env python3
+import os, sys
+
+def framed_write(data):
+    '''
+    function: framed_write()
+    input: data is a byte array
+       fdata[0:8] = data length in bytes
+       fdata[8:] = data contents
+    returns a byte-array
+    ''' 
+    fdata = bytearray()                              # byte-array for framed data
+    size = len(data)                                 # len of data as byte-array
+    fdata += bytearray(size.to_bytes(8, 'big'))      # uses big-endian byte order
+    fdata += bytearray(data)                         # converts the message to bytes
+
+    return fdata
 
 
-import os
-import sys
+def framed_read(fdata):
+    '''
+    function: framed_read()
+    input: Takes a framed msg, fdata, as a byte-array and extracts data where the
+    general structure is
+        fdata[0:8] = data length in bytes
+        fdata[8:] = data contents
+        fnum is number of framed pieces to read
+    returns an array: [data1, data2, ... , ] and sliced framed-data
+    '''    
+    if len(fdata) == 0:
+        return [], byte_array()
+    
+    data = ['', bytearray()]
+    
+    # read the filename
+    size = int.from_bytes(fdata[0:8], 'big')      # get fdata size as bytes
+    contents = fdata[8:8+size].decode()
+    data[0] = contents
+    fdata = fdata[8+size:]                        # update fdata with the next slice
 
-prog_name = sys.argv[0]
-command_name = sys.argv[1]
+    # read the file contents
+    size = int.from_bytes(fdata[0:8], 'big')
+    contents = fdata[8:8+size]
+    data[1] += contents
+    fdata = fdata[8+size:]
+    
+    return data, fdata
 
 
-#input is 'c'
-def create_file():
-	print('Creating a file ')
-	#Create files from the remaining input stream
-	remaining_stream = sys.argv[2:]
-	print('Create new archive tape from the following files: ')
-	
-	#Bytearray to hold our input
-	output_stream = bytearray()
-	try:
-		for file_name in remaining_stream:
-			if(os.path.exists(file_name)):
-				output_stream += (f'len(file_name):02d'.encode())
-				output_stream += (f'{file_name}'.encode())
-				#Fix format for st_size
-				output_stream += (f'{file_name.st_size}:08d'.encode())
-				output_stream += (os.read(file_name, file_name.st_size))
-				
-			else:
-				print(file_name + ' doesn\'t exist')
-	except:
-		os.write(2, f'One of the files could not be archived.\nPlease try again.'.encode())
-		
-#input is 'x'
-def extract_file():
-	print('Extracting a file ')
-	#Get path as last input
-	extract_path = sys.argv[-1]
-	print('Extract from the folowing path ')
-	
-	#Split the stream of the whole file
-	stream = read(extract_path, extract_path.st_size)
-	
-	#Get the name from 2 bytes
-	name_size = 2
-	
-	#Get the size from 8 bytes
-	file_size = 8
-	
-	while stream:
-		#Loop until there are no remaining bytes
-		file_name_length = int(stream[:name_size].decode())
-		stream = stream[name_size:]
-		
-		file_name = stream[:file_name_length].decode()
-		stream = stream[file_name_length:]
-		
-		single_file_size = int(stream[:file_size].decode())
-		stream = stream[file_size:]
-		
-		file_cont = stream[:single_file_size]
-		os.write(file_name, file_cont)
-		
-		stream = stream[single_file_size:]
-		
-	
-		
+def read_from_fd(fd, n=100):
+    '''
+    purpose: read n bytes (at a time) from open file descriptor, fd
+    input: 
+      fd = file descriptor
+      n = num bytes to read at a time
+    output: contents from file descriptor as byte array 
+    '''   
+    contents = bytearray()
 
-	
-	
-if(command_name == 'c'):
-	create_file()
-elif(command_name == 'x'):
-	extract_file()
+    print(f'reading from fd = {fd}')
+    while True: 
+        buf = os.read(fd, n)
+        # print(f'buffer\'s contents are {buf}')
+        if not len(buf): break
+        contents += buf
+
+    print(f'contents reading from fd = {fd} are {contents.decode()}')    
+    return contents
+
+
+def c(files):
+    '''
+    name: c is the "create" function similar to tar\'s'
+    input:
+      files = array of files to be archived
+      fd = file descriptor to write to. default is stdout
+    output: a single file
+    '''
+    #print(f'files to print are {files}')
+    #print(f'file descriptor to print to is fd = {ofd}')
+
+    ffile = bytearray()
+    
+    for file in files:                                        # names of files to process
+        try:
+            fdata = bytearray()
+            ifd = os.open(file, os.O_RDONLY)                  # open file (read-only)
+           
+            fmetadata = framed_write(file.encode())           # frame filename
+            fdata += fmetadata                                # add framed metadata (filename) to byte array
+            
+            contents = read_from_fd(ifd, 10)                  # read 10 bytes (at a time) from open fd
+            fcontents = framed_write(contents)                # frame contents from input fd
+            fdata += fcontents                                # add framed contents to byte array
+
+            ffile += fdata
+
+            os.close(ifd)
+
+        except:
+            print('File does not exist')
+
+    return ffile
+
+    
+def x(ffile):
+    '''
+    input: ffile is bytearray. It should be framed data
+    '''
+    fdata = ffile
+    
+    while len(fdata) > 0:
+
+        data, fdata = framed_read(fdata)                        # read 2 pieces of framed data (filename, contents)
+        ofd = os.open("t" + data[0], os.O_WRONLY | os.O_CREAT)  # create file to write to if necessary
+        os.write(ofd, data[1])
+        os.close(ofd)         
+        
+
+'''        
+if sys.argv[1] == '-help':
+    print('To archive: c <file1> [file2] [output.tar]')
+    print('To unarchive: x < input.tar')
+
+elif sys.argv[1] == 'c':    
+    print('archiving files...')
+    files = sys.argv[2:-1]
+    output = sys.argv[-1]
+    fd = os.open(output, os.O_WRONLY | os.O_CREAT)
+    c(files, fd)
+    print('files have been archived to {}'.format(sys.argv[-1]))
+
+elif sys.argv[1] == 'x':
+    print('extracting files...')
+    file = sys.argv[-1]
+    x(file)
+    print('files have been extracted')
+
+else:
+    print('unable to use archiver. Type -help to check syntax.')
+'''
